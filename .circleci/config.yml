@@ -1,0 +1,61 @@
+# Scala CircleCI 2.0 configuration file
+#
+version: 2
+jobs:
+  build:
+    docker:
+      # specify the version you desire here
+      - image: circleci/openjdk:8-jdk
+      
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/postgres:9.4
+
+    working_directory: ~/repo
+
+    environment:
+      # Customize the JVM maximum heap limit
+      JVM_OPTS: -Xmx3200m
+      TERM: dumb
+
+    steps:
+      - checkout
+
+      - run: cd spark/spark-tensorflow-connector
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "build.sbt" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-dependencies-
+
+      - run: cat /dev/null | sbt test:compile
+
+      # install aws cli
+      - run: sudo apt-get update && sudo apt-get install -y awscli
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: v1-dependencies--{{ checksum "build.sbt" }}
+        
+      # run tests!
+      - run: cat /dev/null | sbt test:test
+
+      - run: cat /dev/null | sbt compile
+
+      - run: cat /dev/null | sbt assembly
+
+      - store_artifacts:
+          path: target/scala-2.11/sparkjobs_2.11-1.0.jar
+
+      - deploy:
+          name: Deploy to S3 if tests pass and branch is Master
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              aws s3 sync --exclude "*" --include "*.jar" target/scala-2.11/ s3://singulariti-us-east-1-circleci-artifacts/sparkjobs/ --delete
+            else
+              echo "Not master branch so not deploying"
+            fi
