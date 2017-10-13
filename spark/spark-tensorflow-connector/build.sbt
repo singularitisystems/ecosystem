@@ -92,3 +92,8 @@ credentials += Credentials(Path.userHome / ".ivy2" / ".sbtcredentials") // A fil
 test in assembly := {}
 
 spShade := true
+
+assemblyMergeStrategy in assembly := {
+ case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+ case x => MergeStrategy.first
+}
